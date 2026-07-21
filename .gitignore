@@ -1,0 +1,9 @@
+*.exe
+*.linux
+*.out
+/bin/
+nexdash_linux
+.env
+*.pem
+*.key
+*.pfx
