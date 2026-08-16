@@ -6,6 +6,11 @@
 //	g2b309e01-...srv.nintendo.net  -> MK8 auth   (BACKEND_MK8)
 //	g23380901-...srv.nintendo.net  -> SSBU auth  (BACKEND_SSBU)
 //	g25c08801-...srv.nintendo.net  -> ARMS auth  (BACKEND_ARMS)
+//	g2ee2e300-...srv.nintendo.net  -> ACNH auth  (BACKEND_ACNH)
+//	g21f12900-...srv.nintendo.net  -> SMB35 auth (BACKEND_SMB35)
+//	g23932a00-...srv.nintendo.net  -> Mario Tennis Aces auth (BACKEND_TENNIS)
+//	g22306d00-...srv.nintendo.net  -> Super Mario Maker 2 auth (BACKEND_SMM2)
+//	*.acbaa.srv.nintendo.net       -> ACNH REST companion API (BACKEND_ACNH_API)
 //	*.ndas.srv.nintendo.net        -> nx-dauth   (BACKEND_DAUTH)
 //	*.dragons.nintendo.net         -> nx-dauth   (BACKEND_DAUTH)
 //	anything else                  -> BACKEND_DEFAULT (MK8 by default)
@@ -34,6 +39,11 @@ func main() {
 	mk8 := envOr("BACKEND_MK8", "127.0.0.1:8443")
 	ssbu := envOr("BACKEND_SSBU", "127.0.0.1:8444")
 	arms := envOr("BACKEND_ARMS", "127.0.0.1:8445")
+	acnh := envOr("BACKEND_ACNH", "127.0.0.1:8447")
+	acnhAPI := envOr("BACKEND_ACNH_API", "127.0.0.1:8448")
+	smb35 := envOr("BACKEND_SMB35", "127.0.0.1:8449")
+	tennis := envOr("BACKEND_TENNIS", "127.0.0.1:8450")
+	smm2 := envOr("BACKEND_SMM2", "127.0.0.1:8451")
 	dauth := envOr("BACKEND_DAUTH", "127.0.0.1:8446")
 	def := envOr("BACKEND_DEFAULT", mk8)
 
@@ -41,18 +51,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen %s: %v", listen, err)
 	}
-	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s dauth=%s default=%s", listen, mk8, ssbu, arms, dauth, def)
+	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s acnhAPI=%s smb35=%s tennis=%s smm2=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def)
 
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go handle(c, mk8, ssbu, arms, dauth, def)
+		go handle(c, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def)
 	}
 }
 
-func handle(c net.Conn, mk8, ssbu, arms, dauth, def string) {
+func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def string) {
 	defer c.Close()
 
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -68,6 +78,16 @@ func handle(c net.Conn, mk8, ssbu, arms, dauth, def string) {
 			backend = ssbu
 		case strings.Contains(sni, "g25c08801"):
 			backend = arms
+		case strings.Contains(sni, "g2ee2e300"):
+			backend = acnh
+		case strings.Contains(sni, "g21f12900"):
+			backend = smb35
+		case strings.Contains(sni, "g23932a00"):
+			backend = tennis
+		case strings.Contains(sni, "g22306d00"):
+			backend = smm2
+		case strings.Contains(sni, "acbaa.srv.nintendo.net"):
+			backend = acnhAPI
 		case strings.Contains(sni, "ndas.srv.nintendo.net"), strings.Contains(sni, "dragons.nintendo.net"):
 			backend = dauth
 		}
