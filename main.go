@@ -10,6 +10,16 @@
 //	g21f12900-...srv.nintendo.net  -> SMB35 auth (BACKEND_SMB35)
 //	g23932a00-...srv.nintendo.net  -> Mario Tennis Aces auth (BACKEND_TENNIS)
 //	g22306d00-...srv.nintendo.net  -> Super Mario Maker 2 auth (BACKEND_SMM2)
+//	g28abaa00-...srv.nintendo.net  -> Mario Party Superstars auth (BACKEND_MPS)
+//	g255ba201-...srv.nintendo.net  -> Super Mario Odyssey auth (BACKEND_SMO)
+//	g26cfaf00-...srv.nintendo.net  -> Mario Strikers: Battle League auth (BACKEND_STRIKERS)
+//	g2896bd04-...srv.nintendo.net  -> Monster Hunter Generations Ultimate auth (BACKEND_MHGU)
+//	g211a3f00-...srv.nintendo.net  -> Mario Golf: Super Rush auth (BACKEND_GOLF) -- captured
+//	                                   live from a real ranked-match attempt (2026-08-28); not
+//	                                   yet cross-checked against a static binary read, so this
+//	                                   could be the Game Server ID rather than the access key
+//	                                   the way MPS's initial g28abaa00 guess was -- see
+//	                                   mario-golf-super-rush's README.
 //	*.acbaa.srv.nintendo.net       -> ACNH REST companion API (BACKEND_ACNH_API)
 //	*.ndas.srv.nintendo.net        -> nx-dauth   (BACKEND_DAUTH)
 //	*.dragons.nintendo.net         -> nx-dauth   (BACKEND_DAUTH)
@@ -44,6 +54,11 @@ func main() {
 	smb35 := envOr("BACKEND_SMB35", "127.0.0.1:8449")
 	tennis := envOr("BACKEND_TENNIS", "127.0.0.1:8450")
 	smm2 := envOr("BACKEND_SMM2", "127.0.0.1:8451")
+	mps := envOr("BACKEND_MPS", "127.0.0.1:8452")
+	smo := envOr("BACKEND_SMO", "127.0.0.1:8453")
+	strikers := envOr("BACKEND_STRIKERS", "127.0.0.1:8454")
+	mhgu := envOr("BACKEND_MHGU", "127.0.0.1:8456")
+	golf := envOr("BACKEND_GOLF", "127.0.0.1:8457")
 	dauth := envOr("BACKEND_DAUTH", "127.0.0.1:8446")
 	def := envOr("BACKEND_DEFAULT", mk8)
 
@@ -51,18 +66,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen %s: %v", listen, err)
 	}
-	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s acnhAPI=%s smb35=%s tennis=%s smm2=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def)
+	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s acnhAPI=%s smb35=%s tennis=%s smm2=%s mps=%s smo=%s strikers=%s mhgu=%s golf=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def)
 
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go handle(c, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def)
+		go handle(c, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def)
 	}
 }
 
-func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dauth, def string) {
+func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def string) {
 	defer c.Close()
 
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -86,6 +101,16 @@ func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, dau
 			backend = tennis
 		case strings.Contains(sni, "g22306d00"):
 			backend = smm2
+		case strings.Contains(sni, "g28abaa00"):
+			backend = mps
+		case strings.Contains(sni, "g255ba201"):
+			backend = smo
+		case strings.Contains(sni, "g26cfaf00"):
+			backend = strikers
+		case strings.Contains(sni, "g2896bd04"):
+			backend = mhgu
+		case strings.Contains(sni, "g211a3f00"):
+			backend = golf
 		case strings.Contains(sni, "acbaa.srv.nintendo.net"):
 			backend = acnhAPI
 		case strings.Contains(sni, "ndas.srv.nintendo.net"), strings.Contains(sni, "dragons.nintendo.net"):
