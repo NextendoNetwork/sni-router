@@ -20,6 +20,7 @@
 //	                                   could be the Game Server ID rather than the access key
 //	                                   the way MPS's initial g28abaa00 guess was -- see
 //	                                   mario-golf-super-rush's README.
+//	g2035bb00-...srv.nintendo.net  -> Clubhouse Games: 51 Worldwide Classics auth (BACKEND_CLUBHOUSE)
 //	*.acbaa.srv.nintendo.net       -> ACNH REST companion API (BACKEND_ACNH_API)
 //	*.ndas.srv.nintendo.net        -> nx-dauth   (BACKEND_DAUTH)
 //	*.dragons.nintendo.net         -> nx-dauth   (BACKEND_DAUTH)
@@ -59,6 +60,7 @@ func main() {
 	strikers := envOr("BACKEND_STRIKERS", "127.0.0.1:8454")
 	mhgu := envOr("BACKEND_MHGU", "127.0.0.1:8456")
 	golf := envOr("BACKEND_GOLF", "127.0.0.1:8457")
+	clubhouse := envOr("BACKEND_CLUBHOUSE", "127.0.0.1:8460")
 	dauth := envOr("BACKEND_DAUTH", "127.0.0.1:8446")
 	def := envOr("BACKEND_DEFAULT", mk8)
 
@@ -66,18 +68,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen %s: %v", listen, err)
 	}
-	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s acnhAPI=%s smb35=%s tennis=%s smm2=%s mps=%s smo=%s strikers=%s mhgu=%s golf=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def)
+	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s acnhAPI=%s smb35=%s tennis=%s smm2=%s mps=%s smo=%s strikers=%s mhgu=%s golf=%s clubhouse=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, clubhouse, dauth, def)
 
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go handle(c, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def)
+		go handle(c, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, clubhouse, dauth, def)
 	}
 }
 
-func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, dauth, def string) {
+func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps, smo, strikers, mhgu, golf, clubhouse, dauth, def string) {
 	defer c.Close()
 
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -111,6 +113,8 @@ func handle(c net.Conn, mk8, ssbu, arms, acnh, acnhAPI, smb35, tennis, smm2, mps
 			backend = mhgu
 		case strings.Contains(sni, "g211a3f00"):
 			backend = golf
+		case strings.Contains(sni, "g2035bb00"):
+			backend = clubhouse
 		case strings.Contains(sni, "acbaa.srv.nintendo.net"):
 			backend = acnhAPI
 		case strings.Contains(sni, "ndas.srv.nintendo.net"), strings.Contains(sni, "dragons.nintendo.net"):
