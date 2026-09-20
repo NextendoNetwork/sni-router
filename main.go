@@ -9,12 +9,14 @@
 //	g2ee2e300-...srv.nintendo.net  -> ACNH auth  (BACKEND_ACNH)
 //	*.ndas.srv.nintendo.net        -> nx-dauth   (BACKEND_DAUTH)
 //	*.dragons.nintendo.net         -> nx-dauth   (BACKEND_DAUTH)
+//	*.demonware.net                -> Diablo III auth, diablo-3 (BACKEND_D3)
 //	anything else                  -> BACKEND_DEFAULT (MK8 by default)
 package main
 
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -37,24 +39,29 @@ func main() {
 	arms := envOr("BACKEND_ARMS", "127.0.0.1:8445")
 	acnh := envOr("BACKEND_ACNH", "127.0.0.1:8447")
 	dauth := envOr("BACKEND_DAUTH", "127.0.0.1:8446")
+	// Diablo III parle Demonware, pas NEX : son auth HTTPS
+	// (crimson-switch-auth3.*.demonware.net) va au serveur diablo-3. Le lobby
+	// (TCP/UDP 3074) ne passe pas par ici.
+	d3 := envOr("BACKEND_D3", "127.0.0.1:8460")
 	def := envOr("BACKEND_DEFAULT", mk8)
+	proxyProto := envOr("SNI_PROXY_PROTOCOL", "") == "1"
 
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		log.Fatalf("listen %s: %v", listen, err)
 	}
-	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s dauth=%s default=%s", listen, mk8, ssbu, arms, acnh, dauth, def)
+	log.Printf("SNI router on %s -> mk8=%s ssbu=%s arms=%s acnh=%s dauth=%s d3=%s default=%s", listen, mk8, ssbu, arms, acnh, dauth, d3, def)
 
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			continue
 		}
-		go handle(c, mk8, ssbu, arms, acnh, dauth, def)
+		go handle(c, mk8, ssbu, arms, acnh, dauth, d3, def, proxyProto)
 	}
 }
 
-func handle(c net.Conn, mk8, ssbu, arms, acnh, dauth, def string) {
+func handle(c net.Conn, mk8, ssbu, arms, acnh, dauth, d3, def string, proxyProto bool) {
 	defer c.Close()
 
 	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -62,18 +69,29 @@ func handle(c net.Conn, mk8, ssbu, arms, acnh, dauth, def string) {
 	_ = c.SetReadDeadline(time.Time{})
 
 	backend := def
+	// Les serveurs d'auth NEX corrèlent l'auth et la connexion secure par IP
+	// source. Nous étant un relais, ils voient la nôtre (127.0.0.1) alors que la
+	// secure arrive en direct depuis la console : « ticketless CONNECT with no
+	// recent auth from this address ». On préfixe donc l'en-tête PROXY pour leur
+	// donner la vraie adresse (ils écoutent en ListenSecureProxy). Réservé aux
+	// backends NEX : nx-dauth et l'upstream ne comprennent pas cet en-tête.
+	wantProxy := false
 	if err == nil {
 		switch {
 		case strings.Contains(sni, "g2b309e01"):
-			backend = mk8
+			backend, wantProxy = mk8, proxyProto
 		case strings.Contains(sni, "g23380901"):
-			backend = ssbu
+			backend, wantProxy = ssbu, proxyProto
 		case strings.Contains(sni, "g25c08801"):
-			backend = arms
+			backend, wantProxy = arms, proxyProto
 		case strings.Contains(sni, "g2ee2e300"):
-			backend = acnh
+			backend, wantProxy = acnh, proxyProto
 		case strings.Contains(sni, "ndas.srv.nintendo.net"), strings.Contains(sni, "dragons.nintendo.net"):
 			backend = dauth
+		case strings.Contains(sni, "demonware.net"):
+			// L'auth diablo-3 lit l'en-tete PROXY comme les auth NEX
+			// (NEXTENDO_PROXY_PROTOCOL=1) : il sert a l'online-check.
+			backend, wantProxy = d3, proxyProto
 		}
 	}
 	log.Printf("conn from %s sni=%q -> %s", c.RemoteAddr(), sni, backend)
@@ -85,6 +103,11 @@ func handle(c net.Conn, mk8, ssbu, arms, acnh, dauth, def string) {
 	}
 	defer up.Close()
 
+	if wantProxy {
+		if err := writeProxyHeader(up, c); err != nil {
+			return
+		}
+	}
 	if _, err := up.Write(hello); err != nil { // replay the buffered ClientHello
 		return
 	}
@@ -154,4 +177,20 @@ func parseSNI(b []byte) string {
 		p += elen
 	}
 	return ""
+}
+
+// writeProxyHeader émet l'en-tête PROXY v1 attendu par ListenSecureProxy :
+// "PROXY TCP4 <ip client> <ip locale> <port client> <port local>\r\n".
+func writeProxyHeader(up, c net.Conn) error {
+	src, ok1 := c.RemoteAddr().(*net.TCPAddr)
+	dst, ok2 := c.LocalAddr().(*net.TCPAddr)
+	if !ok1 || !ok2 {
+		return nil
+	}
+	fam := "TCP4"
+	if src.IP.To4() == nil {
+		fam = "TCP6"
+	}
+	_, err := fmt.Fprintf(up, "PROXY %s %s %s %d %d\r\n", fam, src.IP.String(), dst.IP.String(), src.Port, dst.Port)
+	return err
 }
