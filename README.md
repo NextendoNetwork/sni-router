@@ -9,7 +9,7 @@
 
 ---
 
-Part of the [Nextendo Network](https://nextendo.network) server stack — see the
+Part of the [Nextendo Network](https://nextendo.network) server stack: see the
 architecture documentation for how it fits together with the game servers and the account server.
 
 Configuration is through environment variables; no secrets, keys, or infrastructure addresses are
@@ -17,4 +17,4 @@ baked into the source. Ships no Nintendo code or data.
 
 ## License
 
-Released under the **[PolyForm Shield License 1.0.0](LICENSE.md)** — source-available.
+Released under the **[PolyForm Shield License 1.0.0](LICENSE.md)**, source-available.
